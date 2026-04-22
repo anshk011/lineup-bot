@@ -253,6 +253,9 @@ async def fetch_lineup_description(lineup_id: str) -> str:
             return ""
         finally:
             await browser.close()
+
+
+async def fetch_lineup_images(lineup_id: str, is_setup: bool = False) -> list[str]:
     """
     Fetch all step image URLs for a lineup by probing the CDN directly.
 
