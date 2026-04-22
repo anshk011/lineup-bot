@@ -13,6 +13,8 @@ Flow:
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import math
 from typing import Any
@@ -33,7 +35,7 @@ from telegram.ext import (
 )
 from telegram.constants import ParseMode
 
-from src.lineups.scraper import fetch_lineups, fetch_lineup_images, Lineup
+from src.lineups.scraper import fetch_lineups, fetch_lineup_images, fetch_lineup_description, Lineup
 from src.lineups.constants import AGENTS, MAPS, SIDES, LINEUP_TYPES, PAGE_SIZE
 from src.config import settings
 
@@ -346,7 +348,12 @@ async def on_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.edit_message_text(f"🔍 Loading lineup `{lineup_id}`...", parse_mode=ParseMode.MARKDOWN)
 
     is_setup = cached.get("type", "lineup") == "setup" if cached else False
-    images = await fetch_lineup_images(lineup_id, is_setup=is_setup)
+
+    # Fetch images and description in parallel
+    images, description = await asyncio.gather(
+        fetch_lineup_images(lineup_id, is_setup=is_setup),
+        fetch_lineup_description(lineup_id),
+    )
 
     # Build caption
     title = cached["title"] if cached else f"Lineup {lineup_id}"
@@ -368,7 +375,9 @@ async def on_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         caption_lines.append(f"📍 {from_loc} → {to_loc}")
     elif to_loc:
         caption_lines.append(f"📍 {to_loc}")
-    caption_lines.append(f"🖼 {len(images)} step{'s' if len(images) != 1 else ''}")
+    if description:
+        caption_lines.append(f"\n📋 *Steps*\n{description}")
+    caption_lines.append(f"\n🖼 {len(images)} step{'s' if len(images) != 1 else ''}")
     caption = "\n".join(caption_lines)
 
     back_keyboard = InlineKeyboardMarkup([[

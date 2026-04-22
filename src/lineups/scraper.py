@@ -207,7 +207,52 @@ async def fetch_lineups(
             await browser.close()
 
 
-async def fetch_lineup_images(lineup_id: str, is_setup: bool = False) -> list[str]:
+async def fetch_lineup_description(lineup_id: str) -> str:
+    """
+    Fetch the step-by-step description for a lineup from its viewer page.
+
+    URL pattern: https://lineupsvalorant.com/?id={lineup_id}
+    Selector: #viewer_description_text (contains numbered steps separated by <br>)
+
+    Args:
+        lineup_id: Numeric lineup/setup ID.
+
+    Returns:
+        Formatted description string with numbered steps, or empty string if not found.
+    """
+    url = f"{BASE_URL}/?id={lineup_id}"
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            )
+        )
+        page = await context.new_page()
+
+        try:
+            await page.goto(url, wait_until="networkidle", timeout=25000)
+            await page.wait_for_selector("#viewer_description_text", timeout=8000)
+
+            desc_el = await page.query_selector("#viewer_description_text")
+            if not desc_el:
+                return ""
+
+            # inner_text() collapses <br> into newlines
+            raw = (await desc_el.inner_text()).strip()
+            return raw
+
+        except PWTimeout:
+            logger.warning("Timeout fetching description for lineup %s", lineup_id)
+            return ""
+        except Exception as e:
+            logger.warning("Error fetching description for %s: %s", lineup_id, e)
+            return ""
+        finally:
+            await browser.close()
     """
     Fetch all step image URLs for a lineup by probing the CDN directly.
 
